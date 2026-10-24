@@ -15,8 +15,10 @@ from curriculum import (
     CHAPTERS,
     parse_page_range,
     detect_topics_from_pages,
+    find_topic_by_keyword,
     check_answer_match,
-    generate_math_problem
+    generate_math_problem,
+    clean_math_text
 )
 from ai_engine import MathAIEngine
 from storage import (
@@ -224,18 +226,21 @@ elif st.session_state.current_view == "daily_prep":
         page_input = st.text_input(
             "教科書のページ番号",
             value=st.session_state.current_page_range,
-            placeholder="例: p.42〜43、p42-45、または 42"
+            placeholder="例: p.42〜43、p122-135、または 125"
         )
         st.session_state.current_page_range = page_input
         
-        # ページ解析
+        # ページ解析（画像がない場合の基本検出）
         sp, ep = parse_page_range(page_input)
-        detected = detect_topics_from_pages(sp or 42, ep or 43)
-        st.session_state.current_topics = detected
+        detected_from_pages = detect_topics_from_pages(sp or 42, ep or 43)
+        
+        # 画像がまだないときはページ番号からの単元をセット
+        if not st.session_state.textbook_summary:
+            st.session_state.current_topics = detected_from_pages
         
         st.markdown("<hr style='margin: 1.2rem 0;'>", unsafe_allow_html=True)
-        st.markdown('<div class="card-title">📷 2. その日の教科書ページ写真（任意）</div>', unsafe_allow_html=True)
-        st.caption("教科書の写真をつけると、AIがそのページに載っている公式や例題に完全マッチした問題を作成します！")
+        st.markdown('<div class="card-title">📷 2. その日の教科書ページ写真（推奨・最優先解析）</div>', unsafe_allow_html=True)
+        st.caption("教科書の写真をつけると、AIがそのページに載っている概念・用語・例題を最優先解析し、100%準拠した問題を作成します！")
         
         upload_tab1, upload_tab2 = st.tabs(["📁 画像ファイルを添付", "📸 カメラで今すぐ撮影"])
         uploaded_image = None
@@ -250,27 +255,40 @@ elif st.session_state.current_view == "daily_prep":
                 
         if uploaded_image:
             st.image(uploaded_image, caption="アップロードされた教科書ページ", width=300)
-            with st.spinner("AIが教科書の内容をスキャン中..."):
+            with st.spinner("AIが教科書の内容・単元を最優先でスキャン中..."):
                 summary_data = ai_engine.analyze_textbook_image(uploaded_image, page_input)
                 st.session_state.textbook_summary = summary_data
-            st.success("✅ AIスキャン完了！この範囲の計算問題と文章題を作成しました。")
+                
+                # 画像から判明した単元で current_topics を確実に上書き更新！
+                d_unit = summary_data.get("detected_unit", "")
+                if d_unit:
+                    matched_topic = find_topic_by_keyword(d_unit)
+                    st.session_state.current_topics = [matched_topic]
+
+            st.success("✅ 教科書画像のスキャン完了！画像に100%準拠した計算問題と文章題を作成しました。")
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_info:
         st.markdown('<div class="green-card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-title">🎯 該当する中1数学の単元</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">🎯 出題対象の中1数学の単元</div>', unsafe_allow_html=True)
         
-        if detected:
-            for d in detected:
+        # 画像から解析された単元がある場合はそれを最優先表示
+        if st.session_state.textbook_summary and st.session_state.textbook_summary.get("detected_unit"):
+            img_unit = st.session_state.textbook_summary.get("detected_unit")
+            st.markdown(f"**📷【写真から解析された単元（最優先）】**")
+            st.markdown(f"- 🌿 **{clean_math_text(img_unit)}**")
+            st.caption("※ アップロードされた教科書画像の内容に100%準拠して出題されます。")
+        elif st.session_state.current_topics:
+            for d in st.session_state.current_topics:
                 st.markdown(f"**【{d['chapter_name']}】**")
                 st.markdown(f"- 🌿 **{d['topic_name']}**")
         else:
-            st.info("ページ番号を入力すると、自動で単元を判別します。")
+            st.info("ページ番号の入力または写真アップロードで単元を判別します。")
 
         if st.session_state.textbook_summary:
             st.markdown("---")
             st.markdown("💡 **AI教科書スキャンのポイント:**")
-            st.write(st.session_state.textbook_summary.get("summary", "ポイントを抽出しました"))
+            st.write(clean_math_text(st.session_state.textbook_summary.get("summary", "重要ポイントを抽出しました")))
 
         st.markdown("---")
         st.markdown("#### ⚡ 出題スタイル")
@@ -284,11 +302,33 @@ elif st.session_state.current_view == "daily_prep":
             st.session_state.active_mode = "日々の授業復習"
             st.session_state.current_level = 1
             st.session_state.combo_streak = 0
-            # 最初の問題を作成
-            first_topic = detected[0]["topic_id"] if detected else "ch1_3"
-            st.session_state.current_problem = generate_math_problem(first_topic, level=1, force_type="calc")
             st.session_state.problem_answered = False
             st.session_state.last_eval_result = None
+
+            # 最初の問題の決定：教科書画像がある場合は【画像から生成された計算問題】を絶対最優先！
+            first_prob = None
+            if st.session_state.textbook_summary and st.session_state.textbook_summary.get("suggested_calc"):
+                sc = st.session_state.textbook_summary["suggested_calc"]
+                if sc.get("question"):
+                    unit_label = st.session_state.textbook_summary.get("detected_unit", "教科書記載の単元")
+                    first_prob = {
+                        "type": "calc",
+                        "level": 1,
+                        "topic_name": clean_math_text(unit_label),
+                        "topic_id": st.session_state.current_topics[0]["topic_id"] if st.session_state.current_topics else "ch4_1",
+                        "question": clean_math_text(sc.get("question")),
+                        "answer": clean_math_text(sc.get("answer")),
+                        "acceptable": [clean_math_text(sc.get("answer"))],
+                        "explanation": clean_math_text(sc.get("explanation")),
+                        "is_from_image": True
+                    }
+
+            # 画像がない、または取得できなかった場合のカリキュラム生成
+            if not first_prob:
+                first_topic = st.session_state.current_topics[0]["topic_id"] if st.session_state.current_topics else "ch1_3"
+                first_prob = generate_math_problem(first_topic, level=1, force_type="calc")
+
+            st.session_state.current_problem = first_prob
             st.session_state.current_view = "quiz"
             st.rerun()
             
@@ -342,8 +382,8 @@ elif st.session_state.current_view == "test_prep":
         st.markdown('<div class="green-card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">🔥 テスト対策特訓の特長</div>', unsafe_allow_html=True)
         st.markdown("""
-        - **基本から応用・入試レベルまで網羅**: レベル1の基本問題から始まり、全問正解を重ねるごとに配点・難易度が上昇！
-        - **計算と文章題のバランス出題**: 方程式の利用や文章題も出題され、ノートに途中式を書いて写真提出することで部分点・思考力を鍛えます。
+        - **基本から応用・入試レベルまで網羅**: レベル1の基本問題から始まり、全問正解を重ねるごとに難易度が上昇！
+        - **計算と文章題のバランス出題**: 方程式や比例の利用も出題され、ノートに途中式を書いて写真提出することで部分点・思考力を鍛えます。
         - **エンドレス挑戦**: 納得がいくまで何問でも継続可能！自信がつくまでとことん鍛えられます。
         """)
         
@@ -352,6 +392,7 @@ elif st.session_state.current_view == "test_prep":
             st.session_state.active_mode = "テスト前総復習"
             st.session_state.current_page_range = test_page_range_str
             st.session_state.current_topics = selected_topics_for_test or [{"topic_id": "ch1_3", "chapter_name": "第1章 正負の数", "topic_name": "総合問題"}]
+            st.session_state.textbook_summary = None  # テストモードでは画像要約リセット
             st.session_state.current_level = 1
             st.session_state.combo_streak = 0
             
@@ -383,7 +424,8 @@ elif st.session_state.current_view == "quiz":
 
     level = prob.get("level", st.session_state.current_level)
     q_type = prob.get("type", "calc")
-    topic_title = prob.get("topic_name", "中1数学")
+    topic_title = clean_math_text(prob.get("topic_name", "中1数学"))
+    question_clean = clean_math_text(prob.get("question", ""))
     
     # レベルバーとステータス
     level_names = {
@@ -409,14 +451,14 @@ elif st.session_state.current_view == "quiz":
         st.markdown(f"<div style='text-align: right; font-weight: 800; font-size: 1.1rem; color: #2F855A;'>🔥 {st.session_state.combo_streak} 連勝中</div>", unsafe_allow_html=True)
         st.caption(f"モード: {st.session_state.active_mode}")
 
-    # 問題表示ボックス
+    # 問題表示ボックス（クレンジング済みのプレーンテキストで表示しドルマーク露出を完全防止）
     type_badge = "🔢 計算問題" if q_type == "calc" else "📝 文章問題（ノート写真提出対応）"
     st.markdown(f"""
     <div class="question-box">
         <span class="question-level-badge">Lv.{level}</span>
         <span class="question-type-badge">{type_badge}</span>
         <span style="color: #718096; font-size: 0.88rem; margin-left: 0.5rem;">【{topic_title}】</span>
-        <div class="question-text">{prob.get('question')}</div>
+        <div class="question-text" style="white-space: pre-wrap; font-size: 1.18rem; margin-top: 0.8rem; line-height: 1.6;">{question_clean}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -435,12 +477,12 @@ elif st.session_state.current_view == "quiz":
             
             if q_type == "calc":
                 user_text_input = st.text_input(
-                    "答えを入力してください（例: -3, 4x, x=5 など）:",
-                    key=f"calc_ans_input_{prob.get('question')[:10]}"
+                    "答えを入力してください（例: -3, 4x, x=5, y=3x など）:",
+                    key=f"calc_ans_input_{hash(question_clean)}"
                 )
             else:
                 st.markdown("##### 📸 ノートに解いた途中式や図を写真で提出しよう！")
-                st.caption("先生やAIが、あなたの考え方のプロセス（立式や途中式）を見てアドバイスします。")
+                st.caption("AIがあなたの立式・思考プロセスを丁寧に見てアドバイスします。")
                 
                 note_tab1, note_tab2 = st.tabs(["📁 ノートの写真をアップロード", "📸 カメラでノートを撮影"])
                 with note_tab1:
@@ -458,7 +500,7 @@ elif st.session_state.current_view == "quiz":
                 user_text_input = st.text_input(
                     "（任意）立式メモや最終的な答えの数値:",
                     placeholder="例: x=4個、式は 120x+150=630 など",
-                    key=f"word_ans_input_{prob.get('question')[:10]}"
+                    key=f"word_ans_input_{hash(question_clean)}"
                 )
 
             st.markdown("<br>", unsafe_allow_html=True)
@@ -502,10 +544,10 @@ elif st.session_state.current_view == "quiz":
                     level=level,
                     is_correct=is_correct,
                     score=score,
-                    user_answer=recognized_ans,
-                    correct_answer=prob.get("answer"),
+                    user_answer=clean_math_text(recognized_ans),
+                    correct_answer=clean_math_text(prob.get("answer")),
                     note_image_attached=(uploaded_note is not None),
-                    ai_feedback=ai_feedback
+                    ai_feedback=clean_math_text(ai_feedback)
                 )
 
                 # セッション更新
@@ -513,17 +555,15 @@ elif st.session_state.current_view == "quiz":
                 st.session_state.last_eval_result = {
                     "is_correct": is_correct,
                     "score": score,
-                    "feedback": ai_feedback,
-                    "user_answer": recognized_ans
+                    "feedback": clean_math_text(ai_feedback),
+                    "user_answer": clean_math_text(recognized_ans)
                 }
                 
                 if is_correct:
                     st.session_state.combo_streak += 1
-                    # 正解なら難易度を自動アップ！（最大レベル5）
                     st.session_state.current_level = min(5, st.session_state.current_level + 1)
                 else:
                     st.session_state.combo_streak = 0
-                    # 間違えた場合は同じレベルで再挑戦か、レベルを1つ下げる
                     st.session_state.current_level = max(1, st.session_state.current_level - 1)
 
                 st.rerun()
@@ -534,9 +574,10 @@ elif st.session_state.current_view == "quiz":
             st.markdown('<div class="green-card">', unsafe_allow_html=True)
             st.markdown('<div class="card-title">💡 ヒント・考え方</div>', unsafe_allow_html=True)
             st.markdown("""
-            - 符号ミス（$+$ と $-$）に気をつけましょう！
+            - 符号ミス（+ と -）に気をつけましょう！
             - かっこを外すときは、分配法則を忘れずに。
-            - 文章問題は「何を $x$ にするか」を最初に決めるのがコツです。
+            - 比例・反比例では、まず「x と y の関係式」を見つけるのがコツです。
+            - 文章問題は「何を x（未知数）にするか」を最初に決めるのが大切です。
             """)
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("中断してホームに戻る", use_container_width=True):
@@ -548,8 +589,11 @@ elif st.session_state.current_view == "quiz":
     # 回答後の解説・フィードバック画面
     # ------------------------------------------
     else:
-        eval_data = st.session_state.last_eval_result
+        eval_data = st.session_state.last_eval_result or {}
         is_correct = eval_data.get("is_correct")
+        clean_ans = clean_math_text(prob.get('answer'))
+        clean_exp = clean_math_text(prob.get('explanation'))
+        clean_fb = clean_math_text(eval_data.get('feedback', ''))
         
         if is_correct:
             st.balloons()
@@ -561,7 +605,7 @@ elif st.session_state.current_view == "quiz":
         else:
             st.markdown(f"""
             <div class="result-incorrect">
-                <span>💪 おしい！ 次につながるステップです！（正解: {prob.get('answer')}）</span>
+                <span>💪 おしい！ 次につながるステップです！（正解: {clean_ans}）</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -571,10 +615,10 @@ elif st.session_state.current_view == "quiz":
             st.markdown(f"""
             <div class="explanation-box">
                 <div class="explanation-title">📖 詳しい解説とステップ</div>
-                <div>{prob.get('explanation')}</div>
+                <div style="white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6;">{clean_exp}</div>
                 <hr style="margin: 1rem 0;">
                 <div style="font-weight: 700; color: #2B6CB0; margin-bottom: 0.3rem;">🤖 AI先生からの思考プロセスフィードバック:</div>
-                <div style="color: #2D3748; font-size: 0.95rem;">{eval_data.get('feedback')}</div>
+                <div style="color: #2D3748; font-size: 0.95rem; white-space: pre-wrap;">{clean_fb}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -590,18 +634,56 @@ elif st.session_state.current_view == "quiz":
             
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("👉 次の問題へ進む！（エンドレス挑戦）", type="primary", use_container_width=True):
-                # 次の問題を生成
-                target_topic = prob.get("topic_id", "ch1_3")
-                if st.session_state.current_topics:
-                    target_topic = random.choice(st.session_state.current_topics)["topic_id"]
+                next_prob = None
                 
-                # 計算問題と文章題をバランスよく出題
-                next_type = "word" if prob.get("type") == "calc" else "calc"
-                st.session_state.current_problem = generate_math_problem(
-                    topic_id=target_topic,
-                    level=st.session_state.current_level,
-                    force_type=next_type
-                )
+                # 1. 教科書画像由来の1問目を終えた直後で、画像から生成した文章題（suggested_word）があれば2問目に確実に出題！
+                if st.session_state.textbook_summary and prob.get("is_from_image") and prob.get("type") == "calc":
+                    sw = st.session_state.textbook_summary.get("suggested_word")
+                    if sw and sw.get("question"):
+                        unit_label = st.session_state.textbook_summary.get("detected_unit", "教科書記載の単元")
+                        next_prob = {
+                            "type": "word",
+                            "level": st.session_state.current_level,
+                            "topic_name": clean_math_text(unit_label),
+                            "topic_id": st.session_state.current_topics[0]["topic_id"] if st.session_state.current_topics else "ch4_1",
+                            "question": clean_math_text(sw.get("question")),
+                            "answer": clean_math_text(sw.get("answer")),
+                            "acceptable": [clean_math_text(sw.get("answer"))],
+                            "explanation": clean_math_text(sw.get("explanation")),
+                            "is_from_image": True
+                        }
+
+                # 2. 3問目以降（または画像文章題がない場合）：画像単元または現在の単元を100%維持して出題
+                if not next_prob:
+                    target_topic_name = prob.get("topic_name", "中1数学")
+                    target_topic_id = prob.get("topic_id", "ch4_1")
+                    if st.session_state.current_topics:
+                        t_info = st.session_state.current_topics[0]
+                        target_topic_id = t_info["topic_id"]
+                        target_topic_name = t_info["topic_name"]
+
+                    # Gemini AI が有効なら指定単元に100%準拠した問題を動的生成
+                    if ai_engine.is_gemini_active():
+                        next_prob = ai_engine.generate_next_adaptive_problem(
+                            current_problem=prob,
+                            is_correct=is_correct,
+                            current_level=st.session_state.current_level,
+                            unit_override=target_topic_name
+                        )
+
+                    # カリキュラムによるフォールバック生成
+                    if not next_prob:
+                        next_type = "word" if prob.get("type") == "calc" else "calc"
+                        next_prob = generate_math_problem(
+                            topic_id=target_topic_id,
+                            level=st.session_state.current_level,
+                            force_type=next_type
+                        )
+                        # 画像の単元名があれば維持
+                        if st.session_state.textbook_summary and st.session_state.textbook_summary.get("detected_unit"):
+                            next_prob["topic_name"] = st.session_state.textbook_summary.get("detected_unit")
+
+                st.session_state.current_problem = next_prob
                 st.session_state.problem_answered = False
                 st.session_state.last_eval_result = None
                 st.rerun()
@@ -660,7 +742,7 @@ elif st.session_state.current_view == "parent":
     st.markdown('<div class="advice-title">🤖 AI学習アドバイザーからの分析＆家庭での声かけヒント</div>', unsafe_allow_html=True)
     with st.spinner("AIが最新の学習ログからアドバイスをまとめています..."):
         parent_advice_text = ai_engine.generate_parent_advice(hist)
-    st.markdown(parent_advice_text)
+    st.markdown(clean_math_text(parent_advice_text))
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -673,7 +755,7 @@ elif st.session_state.current_view == "parent":
         st.markdown('<div class="card-title">📊 単元別の正答率</div>', unsafe_allow_html=True)
         if stats["topic_stats"]:
             df_topics = pd.DataFrame([
-                {"単元名": k, "正答率(%)": v["rate"], "挑戦数": v["total"]}
+                {"単元名": clean_math_text(k), "正答率(%)": v["rate"], "挑戦数": v["total"]}
                 for k, v in stats["topic_stats"].items()
             ])
             fig_topic = px.bar(
@@ -733,12 +815,12 @@ elif st.session_state.current_view == "parent":
                 "勉強した日時": h.get("timestamp"),
                 "モード": h.get("mode"),
                 "ページ範囲": h.get("page_range"),
-                "単元": h.get("topic_name"),
+                "単元": clean_math_text(h.get("topic_name")),
                 "種別": "計算" if h.get("problem_type") == "calc" else "文章題",
                 "難易度": f"Lv.{h.get('level')}",
                 "正否": "⭕ 正解" if h.get("is_correct") else "❌ 不正解",
                 "ノート添付": "あり 📷" if h.get("note_image_attached") else "なし",
-                "AIアドバイス": h.get("ai_feedback")
+                "AIアドバイス": clean_math_text(h.get("ai_feedback"))
             })
         st.dataframe(pd.DataFrame(records_display), use_container_width=True, height=260)
     else:
