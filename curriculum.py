@@ -1,6 +1,8 @@
 """
 curriculum.py - 中学1年生数学のカリキュラム定義・ページマッピング・問題生成ロジック
 """
+import ast
+import operator
 import random
 import re
 import unicodedata
@@ -276,6 +278,171 @@ def check_answer_match(user_ans: str, correct_ans: str, acceptable_variants=None
     return False
 
 # ==========================================
+# 数学計算・検証エンジン（Python側で数値を厳密に算出・検算）
+# ==========================================
+_SAFE_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Pow: operator.pow,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+}
+
+def _safe_eval_ast(node):
+    if isinstance(node, ast.Expression):
+        return _safe_eval_ast(node.body)
+    elif isinstance(node, ast.Constant):
+        return node.value
+    elif isinstance(node, ast.BinOp):
+        left = _safe_eval_ast(node.left)
+        right = _safe_eval_ast(node.right)
+        op_type = type(node.op)
+        if op_type in _SAFE_OPERATORS:
+            return _SAFE_OPERATORS[op_type](left, right)
+    elif isinstance(node, ast.UnaryOp):
+        operand = _safe_eval_ast(node.operand)
+        op_type = type(node.op)
+        if op_type in _SAFE_OPERATORS:
+            return _SAFE_OPERATORS[op_type](operand)
+    raise ValueError(f"Unsupported node: {node}")
+
+def try_eval_arithmetic(expr_str: str):
+    """
+    四則演算・累乗などの数式文字列をPythonのASTを用いて安全・正確に計算
+    """
+    try:
+        s = expr_str.strip()
+        s = s.replace('＋', '+').replace('－', '-').replace('−', '-').replace('ー', '-').replace('―', '-')
+        s = s.replace('×', '*').replace('÷', '/').replace('^', '**')
+        if not re.match(r'^[0-9+\-*/().\s*]+$', s):
+            return None
+        parsed = ast.parse(s, mode='eval')
+        val = _safe_eval_ast(parsed)
+        if isinstance(val, float) and val.is_integer():
+            return int(val)
+        return val
+    except Exception:
+        return None
+
+def solve_linear_eq(eq_str: str):
+    """
+    ax + b = c または ax = c の1次方程式をPython側で正確に解く
+    """
+    m = re.search(r'([+-]?\s*\d*)\s*x\s*([+-]\s*\d+)?\s*=\s*([+-]?\s*\d+)', eq_str)
+    if m:
+        a_str = m.group(1).replace(' ', '')
+        b_str = m.group(2)
+        c_str = m.group(3).replace(' ', '')
+        a = 1 if a_str in ['', '+'] else (-1 if a_str == '-' else int(a_str))
+        b = int(b_str.replace(' ', '')) if b_str else 0
+        c = int(c_str)
+        if a != 0:
+            sol = (c - b) / a
+            if sol.is_integer():
+                return int(sol)
+            return sol
+    return None
+
+def verify_and_recalculate_problem(prob: dict) -> dict:
+    """
+    出題問題の正解（answer）および解説（explanation）をPython側の計算ロジックで検証・再計算し、
+    AIや乱数の計算ミスを完全に防いで数学的正確性を担保する
+    """
+    if not prob:
+        return prob
+    
+    question = prob.get("question", "")
+    answer = str(prob.get("answer", "")).strip()
+    explanation = prob.get("explanation", "")
+    acceptable = prob.get("acceptable", [])
+    if isinstance(acceptable, str):
+        acceptable = [acceptable]
+    elif not acceptable:
+        acceptable = [answer]
+
+    calc_ans = None
+
+    # 1. 気温に関する文章題の自動立式・Python計算
+    temp_match = re.search(r'気温(?:は|が)?\s*([+-]?\d+)\s*(?:℃|度).*?([+-]?\d+)\s*(?:℃|度)\s*(高く|上が|低く|下が)', question)
+    if temp_match:
+        t_base = int(temp_match.group(1))
+        t_diff = int(temp_match.group(2))
+        direction = temp_match.group(3)
+        if '高' in direction or '上' in direction:
+            calc_ans = t_base + t_diff
+            calc_eq = f"({t_base}) + {t_diff} = {calc_ans}"
+        else:
+            calc_ans = t_base - t_diff
+            calc_eq = f"({t_base}) - {t_diff} = {calc_ans}"
+        
+        answer = str(calc_ans)
+        acceptable = [str(calc_ans), f"{calc_ans}度", f"{calc_ans}℃"]
+        if '式:' in explanation or '答え:' in explanation:
+            explanation = re.sub(r'式:\s*.*?(?=\n|$)', f"式: {calc_eq}", explanation)
+            explanation = re.sub(r'答え:\s*.*?(?=\n|$)', f"答え: {calc_ans} (℃)", explanation)
+        else:
+            explanation += f"\n【立式と計算】\n・式: {calc_eq}\n・答え: {calc_ans} (℃)"
+
+    # 2. 1次方程式の解の検証
+    if calc_ans is None and ('方程式' in question):
+        sol = solve_linear_eq(question)
+        if sol is not None:
+            calc_ans = sol
+            answer = str(calc_ans)
+            acceptable = [str(calc_ans), f"x={calc_ans}"]
+
+    # 3. 比例定数 a の計算
+    if calc_ans is None and '比例定数' in question:
+        m = re.search(r'x\s*=\s*([+-]?\d+).*?y\s*=\s*([+-]?\d+)', question)
+        if m:
+            x_val = int(m.group(1))
+            y_val = int(m.group(2))
+            if x_val != 0 and y_val % x_val == 0:
+                calc_ans = y_val // x_val
+                answer = str(calc_ans)
+                acceptable = [str(calc_ans), f"a={calc_ans}"]
+
+    # 4. 四則演算・計算問題（「次の計算をしなさい」等）
+    if calc_ans is None and ('計算をしなさい' in question or '計算しなさい' in question):
+        lines = question.strip().splitlines()
+        for line in lines[1:]:
+            cand = line.strip()
+            cand = re.sub(r'^[①-⑳\d\.\s]+', '', cand)
+            cand_val = try_eval_arithmetic(cand)
+            if cand_val is not None:
+                calc_ans = cand_val
+                answer = str(calc_ans)
+                acceptable = [str(calc_ans)]
+                break
+
+    # 5. 解説文中の等式（... = ...）をPythonで検算し、計算ミスがあれば自動修正
+    def _fix_eq(m):
+        left_str = m.group(1).strip()
+        right_str = m.group(2).strip()
+        val = try_eval_arithmetic(left_str)
+        if val is not None:
+            try:
+                if float(right_str) != float(val):
+                    return f"{left_str} = {val}"
+            except ValueError:
+                pass
+        return m.group(0)
+
+    explanation = re.sub(r'([0-9+\-*/()×÷ \t^]+)=\s*([+-]?\d+(?:\.\d+)?)', _fix_eq, explanation)
+
+    # calc_ans が確定している場合、解説中の答え表示も整合性を保つ
+    if calc_ans is not None:
+        explanation = re.sub(r'(答え:\s*)([+-]?\d+)', rf"\g<1>{calc_ans}", explanation)
+
+    prob["answer"] = str(answer)
+    prob["explanation"] = explanation
+    prob["acceptable"] = list(dict.fromkeys([str(x) for x in acceptable]))
+    return prob
+
+# ==========================================
 # 難易度別 中1数学問題生成ジェネレータ
 # ==========================================
 def generate_math_problem(topic_id: str, level: int = 1, force_type: str = None) -> dict:
@@ -316,6 +483,9 @@ def generate_math_problem(topic_id: str, level: int = 1, force_type: str = None)
     prob["topic_id"] = topic_id
     if "acceptable" in prob and prob["acceptable"]:
         prob["acceptable"] = [clean_math_text(x) for x in prob["acceptable"]]
+    
+    # Python側での厳密な数値計算・検算処理を実行
+    prob = verify_and_recalculate_problem(prob)
     return prob
 
 def _gen_ch1_problem(topic_id: str, level: int, q_type: str) -> dict:

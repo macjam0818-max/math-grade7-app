@@ -18,7 +18,8 @@ from curriculum import (
     find_topic_by_keyword,
     check_answer_match,
     generate_math_problem,
-    clean_math_text
+    clean_math_text,
+    verify_and_recalculate_problem
 )
 from ai_engine import MathAIEngine
 from storage import (
@@ -328,7 +329,7 @@ elif st.session_state.current_view == "daily_prep":
                 first_topic = st.session_state.current_topics[0]["topic_id"] if st.session_state.current_topics else "ch1_3"
                 first_prob = generate_math_problem(first_topic, level=1, force_type="calc")
 
-            st.session_state.current_problem = first_prob
+            st.session_state.current_problem = verify_and_recalculate_problem(first_prob)
             st.session_state.current_view = "quiz"
             st.rerun()
             
@@ -395,7 +396,7 @@ elif st.session_state.current_view == "test_prep":
             
             # 最初の問題
             t_id = st.session_state.current_topics[0]["topic_id"]
-            st.session_state.current_problem = generate_math_problem(t_id, level=1)
+            st.session_state.current_problem = verify_and_recalculate_problem(generate_math_problem(t_id, level=1))
             st.session_state.problem_answered = False
             st.session_state.last_eval_result = None
             st.session_state.current_view = "quiz"
@@ -609,12 +610,12 @@ elif st.session_state.current_view == "quiz":
         
         with col_exp1:
             st.markdown(f"""
-            <div class="explanation-box">
-                <div class="explanation-title">📖 詳しい解説とステップ</div>
-                <div class="explanation-content" style="color: #111827 !important; white-space: pre-wrap; font-size: 1.05rem; line-height: 1.65; font-weight: 500;">{clean_exp}</div>
-                <hr style="margin: 1rem 0; border-color: #E2E8F0;">
-                <div class="explanation-feedback-title" style="font-weight: 700; color: #2B6CB0 !important; margin-bottom: 0.3rem;">🤖 AI先生からの思考プロセスフィードバック:</div>
-                <div class="explanation-feedback-content" style="color: #1F2937 !important; font-size: 0.95rem; white-space: pre-wrap; line-height: 1.55; font-weight: 500;">{clean_fb}</div>
+            <div class="explanation-box" style="background-color: #FFFFFF !important; border: 2px solid #CBD5E1 !important; border-left: 6px solid #38A169 !important; border-radius: 14px !important; padding: 1.4rem 1.6rem !important; margin-top: 1rem !important; box-shadow: 0 4px 15px rgba(0,0,0,0.08) !important; color: #111827 !important;">
+                <div class="explanation-title" style="color: #276749 !important; font-size: 1.15rem !important; font-weight: 800 !important; margin-bottom: 0.6rem !important; display: flex !important; align-items: center !important; gap: 0.4rem !important;">📖 詳しい解説とステップ</div>
+                <div class="explanation-content" style="color: #111827 !important; font-size: 1.05rem !important; line-height: 1.7 !important; font-weight: 600 !important; white-space: pre-wrap !important;">{clean_exp}</div>
+                <hr style="margin: 1.2rem 0 !important; border: 0 !important; border-top: 1.5px solid #CBD5E1 !important;">
+                <div class="explanation-feedback-title" style="color: #2B6CB0 !important; font-size: 1rem !important; font-weight: 700 !important; margin-bottom: 0.4rem !important;">🤖 AI先生からの思考プロセスフィードバック:</div>
+                <div class="explanation-feedback-content" style="color: #1F2937 !important; font-size: 0.95rem !important; white-space: pre-wrap !important; line-height: 1.6 !important; font-weight: 500 !important;">{clean_fb}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -679,7 +680,7 @@ elif st.session_state.current_view == "quiz":
                         if st.session_state.textbook_summary and st.session_state.textbook_summary.get("detected_unit"):
                             next_prob["topic_name"] = st.session_state.textbook_summary.get("detected_unit")
 
-                st.session_state.current_problem = next_prob
+                st.session_state.current_problem = verify_and_recalculate_problem(next_prob)
                 st.session_state.problem_answered = False
                 st.session_state.last_eval_result = None
                 st.rerun()

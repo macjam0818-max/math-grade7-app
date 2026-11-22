@@ -14,7 +14,7 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-from curriculum import clean_math_text
+from curriculum import clean_math_text, verify_and_recalculate_problem
 
 
 class MathAIEngine:
@@ -120,11 +120,13 @@ class MathAIEngine:
                         sc["question"] = clean_math_text(sc.get("question", ""))
                         sc["answer"] = clean_math_text(sc.get("answer", ""))
                         sc["explanation"] = clean_math_text(sc.get("explanation", ""))
+                        data["suggested_calc"] = verify_and_recalculate_problem(sc)
                     if data.get("suggested_word"):
                         sw = data["suggested_word"]
                         sw["question"] = clean_math_text(sw.get("question", ""))
                         sw["answer"] = clean_math_text(sw.get("answer", ""))
                         sw["explanation"] = clean_math_text(sw.get("explanation", ""))
+                        data["suggested_word"] = verify_and_recalculate_problem(sw)
                     return data
             except Exception as e:
                 print(f"Gemini textbook analyze error: {e}")
@@ -132,7 +134,7 @@ class MathAIEngine:
         # フォールバック（APIキーなし、または通信エラー時）
         # page_text にヒントがあれば反映
         unit_name = "比例と反比例（比例の式・変域）" if any(w in page_text for w in ["比例", "反比例", "変域", "12", "13", "14", "15"]) else "教科書記載の単元"
-        return {
+        fallback_data = {
             "detected_unit": unit_name,
             "summary": "教科書の図や例題から重要公式・重要ルールを抽出しました！",
             "suggested_calc": {
@@ -146,6 +148,9 @@ class MathAIEngine:
                 "explanation": "x が最大のとき y も最大になるため、x = 4 を代入すると y = 3 × 4 = 12 となります。"
             }
         }
+        fallback_data["suggested_calc"] = verify_and_recalculate_problem(fallback_data["suggested_calc"])
+        fallback_data["suggested_word"] = verify_and_recalculate_problem(fallback_data["suggested_word"])
+        return fallback_data
 
     def evaluate_notebook_answer(self, image: Image.Image, problem: dict, user_text_notes: str = "") -> dict:
         """
@@ -284,6 +289,8 @@ class MathAIEngine:
                     data["type"] = q_type
                     if "acceptable" in data and data["acceptable"]:
                         data["acceptable"] = [clean_math_text(x) for x in data["acceptable"]]
+                    # Python側で厳格に数値計算・検算を実行
+                    data = verify_and_recalculate_problem(data)
                     return data
             except Exception as e:
                 print(f"Gemini adaptive problem gen error: {e}")

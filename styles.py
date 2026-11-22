@@ -181,54 +181,84 @@ html, body, [class*="css"] {
     margin-bottom: 1rem;
 }
 
-/* 解説ボックス */
+/* 解説ボックス（ダークモード・ライトモード完全対応の高コントラスト表示） */
+.explanation-box,
+.explanation-box *,
+div.explanation-box,
+div.explanation-box *,
+div.explanation-box p,
+div.explanation-box li,
+div.explanation-box span,
+div.explanation-box div,
+div.explanation-box strong,
+div.explanation-box b,
+div.explanation-box em,
+div.explanation-box ul,
+div.explanation-box ol,
+[data-testid="stMarkdownContainer"] .explanation-box,
+[data-testid="stMarkdownContainer"] .explanation-box *,
+[data-testid="stMarkdownContainer"] .explanation-box p,
+[data-testid="stMarkdownContainer"] .explanation-box li,
+[data-testid="stMarkdownContainer"] .explanation-box span,
+[data-testid="stMarkdownContainer"] .explanation-box div,
+[data-testid="stMarkdownContainer"] .explanation-box strong,
+[data-testid="stMarkdownContainer"] .explanation-box b {
+    color: #111827 !important;
+}
+
 .explanation-box {
-    background: #FFFFFF !important;
-    border-left: 5px solid #48BB78;
-    border-radius: 8px 14px 14px 8px;
-    padding: 1.2rem 1.5rem;
-    margin-top: 1rem;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.04);
-    color: #111827 !important;
+    background-color: #FFFFFF !important;
+    border: 2px solid #CBD5E1 !important;
+    border-left: 6px solid #38A169 !important;
+    border-radius: 14px !important;
+    padding: 1.4rem 1.6rem !important;
+    margin-top: 1rem !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
 }
 
-.explanation-box div,
-.explanation-box p,
-.explanation-box span,
-.explanation-box li {
-    color: #111827;
-}
-
-.explanation-title {
-    font-size: 1.05rem;
-    font-weight: 800;
+.explanation-title,
+.explanation-box .explanation-title,
+div.explanation-box .explanation-title,
+[data-testid="stMarkdownContainer"] .explanation-box .explanation-title {
     color: #276749 !important;
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    margin-bottom: 0.6rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
 }
 
-.explanation-content {
+.explanation-content,
+.explanation-box .explanation-content,
+div.explanation-box .explanation-content,
+[data-testid="stMarkdownContainer"] .explanation-box .explanation-content {
     color: #111827 !important;
-    font-size: 1.05rem;
-    line-height: 1.65;
-    white-space: pre-wrap;
-    font-weight: 500;
+    font-size: 1.05rem !important;
+    line-height: 1.7 !important;
+    white-space: pre-wrap !important;
+    font-weight: 600 !important;
 }
 
-.explanation-feedback-title {
-    font-weight: 700;
+.explanation-feedback-title,
+.explanation-box .explanation-feedback-title,
+div.explanation-box .explanation-feedback-title,
+[data-testid="stMarkdownContainer"] .explanation-box .explanation-feedback-title {
     color: #2B6CB0 !important;
-    margin-bottom: 0.3rem;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    margin-bottom: 0.4rem !important;
 }
 
-.explanation-feedback-content {
+.explanation-feedback-content,
+.explanation-box .explanation-feedback-content,
+div.explanation-box .explanation-feedback-content,
+[data-testid="stMarkdownContainer"] .explanation-box .explanation-feedback-content {
     color: #1F2937 !important;
-    font-size: 0.95rem;
-    white-space: pre-wrap;
-    line-height: 1.55;
-    font-weight: 500;
+    font-size: 0.95rem !important;
+    white-space: pre-wrap !important;
+    line-height: 1.6 !important;
+    font-weight: 500 !important;
 }
 
 /* 成績・正解/不正解ハイライト */
