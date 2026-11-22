@@ -14,7 +14,12 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-from curriculum import clean_math_text, verify_and_recalculate_problem
+try:
+    from curriculum import clean_math_text, verify_and_recalculate_problem
+except ImportError:
+    from curriculum import clean_math_text
+    def verify_and_recalculate_problem(prob):
+        return prob
 
 
 class MathAIEngine:

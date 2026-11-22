@@ -7,6 +7,20 @@ import random
 import re
 import unicodedata
 
+__all__ = [
+    "clean_math_text",
+    "CHAPTERS",
+    "parse_page_range",
+    "detect_topics_from_pages",
+    "find_topic_by_keyword",
+    "normalize_math_answer",
+    "check_answer_match",
+    "verify_and_recalculate_problem",
+    "generate_math_problem",
+    "try_eval_arithmetic",
+    "solve_linear_eq",
+]
+
 # ==========================================
 # 数式クレンジング関数（TeX記法・ドルマーク完全除去）
 # ==========================================

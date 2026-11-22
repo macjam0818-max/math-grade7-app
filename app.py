@@ -11,16 +11,29 @@ import random
 
 # 自作モジュールのインポート
 from styles import CUSTOM_CSS
-from curriculum import (
-    CHAPTERS,
-    parse_page_range,
-    detect_topics_from_pages,
-    find_topic_by_keyword,
-    check_answer_match,
-    generate_math_problem,
-    clean_math_text,
-    verify_and_recalculate_problem
-)
+try:
+    from curriculum import (
+        CHAPTERS,
+        parse_page_range,
+        detect_topics_from_pages,
+        find_topic_by_keyword,
+        check_answer_match,
+        generate_math_problem,
+        clean_math_text,
+        verify_and_recalculate_problem
+    )
+except ImportError:
+    from curriculum import (
+        CHAPTERS,
+        parse_page_range,
+        detect_topics_from_pages,
+        find_topic_by_keyword,
+        check_answer_match,
+        generate_math_problem,
+        clean_math_text
+    )
+    def verify_and_recalculate_problem(prob):
+        return prob
 from ai_engine import MathAIEngine
 from storage import (
     load_history,
