@@ -71,6 +71,10 @@ html, body, [class*="css"] {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.green-card:empty {
+    display: none !important;
+}
+
 .green-card:hover {
     box-shadow: 0 8px 25px rgba(72, 187, 120, 0.12);
     border-color: #9AE6B4;

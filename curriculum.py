@@ -3,6 +3,7 @@ curriculum.py - 中学1年生数学のカリキュラム定義・ページマッ
 """
 import random
 import re
+import unicodedata
 
 # ==========================================
 # 数式クレンジング関数（TeX記法・ドルマーク完全除去）
@@ -221,11 +222,20 @@ def normalize_math_answer(ans_str: str) -> str:
     if ans_str is None:
         return ""
     s = clean_math_text(str(ans_str).strip())
-    # 全角数字・記号を半角に変換
-    zenkaku = "０１２３４５６７８９＋－×÷＝／（）ｘＸｙＹａＡ"
-    hankaku = "0123456789+-*/=//()xxya"
-    table = str.maketrans(zenkaku, hankaku)
-    s = s.translate(table)
+    # NFKC正規化で全角英数字・記号・空白を確実に半角化
+    s = unicodedata.normalize("NFKC", s)
+    # 記号の表記揺れ対応（辞書ベースで文字数ズレのValueErrorを防止）
+    symbol_map = {
+        '−': '-',  # 数学記号マイナス (U+2212)
+        '―': '-',  # 全角ダッシュ (U+2015)
+        'ー': '-',  # カタカナ長音 (U+30FC)
+        '–': '-',  # en dash (U+2013)
+        '—': '-',  # em dash (U+2014)
+        '‐': '-',  # ハイフン (U+2010)
+        '×': '*',
+        '÷': '/',
+    }
+    s = s.translate(str.maketrans(symbol_map))
     # スペース削除
     s = re.sub(r'\s+', '', s)
     # 小文字化

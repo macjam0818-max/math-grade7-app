@@ -348,7 +348,6 @@ elif st.session_state.current_view == "test_prep":
     col_test1, col_test2 = st.columns([1, 1])
     
     with col_test1:
-        st.markdown('<div class="green-card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">📌 テスト範囲の指定方法</div>', unsafe_allow_html=True)
         
         test_method = st.radio("指定方法を選択", ["ページ数で指定（例: p.10〜50）", "単元名の一覧からまとめて選択"])
@@ -376,10 +375,8 @@ elif st.session_state.current_view == "test_prep":
                             "topic_id": t["id"],
                             "topic_name": t["name"]
                         })
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_test2:
-        st.markdown('<div class="green-card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">🔥 テスト対策特訓の特長</div>', unsafe_allow_html=True)
         st.markdown("""
         - **基本から応用・入試レベルまで網羅**: レベル1の基本問題から始まり、全問正解を重ねるごとに難易度が上昇！
@@ -407,7 +404,6 @@ elif st.session_state.current_view == "test_prep":
         if st.button("← ホームに戻る", key="btn_test_back", use_container_width=True):
             st.session_state.current_view = "home"
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ==========================================
