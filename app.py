@@ -611,10 +611,10 @@ elif st.session_state.current_view == "quiz":
             st.markdown(f"""
             <div class="explanation-box">
                 <div class="explanation-title">📖 詳しい解説とステップ</div>
-                <div style="white-space: pre-wrap; font-size: 1.05rem; line-height: 1.6;">{clean_exp}</div>
-                <hr style="margin: 1rem 0;">
-                <div style="font-weight: 700; color: #2B6CB0; margin-bottom: 0.3rem;">🤖 AI先生からの思考プロセスフィードバック:</div>
-                <div style="color: #2D3748; font-size: 0.95rem; white-space: pre-wrap;">{clean_fb}</div>
+                <div class="explanation-content" style="color: #111827 !important; white-space: pre-wrap; font-size: 1.05rem; line-height: 1.65; font-weight: 500;">{clean_exp}</div>
+                <hr style="margin: 1rem 0; border-color: #E2E8F0;">
+                <div class="explanation-feedback-title" style="font-weight: 700; color: #2B6CB0 !important; margin-bottom: 0.3rem;">🤖 AI先生からの思考プロセスフィードバック:</div>
+                <div class="explanation-feedback-content" style="color: #1F2937 !important; font-size: 0.95rem; white-space: pre-wrap; line-height: 1.55; font-weight: 500;">{clean_fb}</div>
             </div>
             """, unsafe_allow_html=True)
 

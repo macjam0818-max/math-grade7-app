@@ -183,22 +183,52 @@ html, body, [class*="css"] {
 
 /* 解説ボックス */
 .explanation-box {
-    background: #FFFFFF;
+    background: #FFFFFF !important;
     border-left: 5px solid #48BB78;
     border-radius: 8px 14px 14px 8px;
     padding: 1.2rem 1.5rem;
     margin-top: 1rem;
     box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+    color: #111827 !important;
+}
+
+.explanation-box div,
+.explanation-box p,
+.explanation-box span,
+.explanation-box li {
+    color: #111827;
 }
 
 .explanation-title {
     font-size: 1.05rem;
     font-weight: 800;
-    color: #276749;
+    color: #276749 !important;
     margin-bottom: 0.5rem;
     display: flex;
     align-items: center;
     gap: 0.4rem;
+}
+
+.explanation-content {
+    color: #111827 !important;
+    font-size: 1.05rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    font-weight: 500;
+}
+
+.explanation-feedback-title {
+    font-weight: 700;
+    color: #2B6CB0 !important;
+    margin-bottom: 0.3rem;
+}
+
+.explanation-feedback-content {
+    color: #1F2937 !important;
+    font-size: 0.95rem;
+    white-space: pre-wrap;
+    line-height: 1.55;
+    font-weight: 500;
 }
 
 /* 成績・正解/不正解ハイライト */

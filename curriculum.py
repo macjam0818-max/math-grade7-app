@@ -372,12 +372,12 @@ def _gen_ch1_problem(topic_id: str, level: int, q_type: str) -> dict:
             }
     else:
         diff = random.choice([3, 4, 5, 6])
-        ans = 25 + diff
+        ans = -3 + diff
         q_text = f"【文章題：ノートに解き方を書いて写真で提出してみよう！】\nある地点の今朝の気温は -3℃ でした。昼には今朝より {diff}℃ 高くなりました。昼の気温は何℃ですか？（単位なしの数値またはノートの写真で回答してください）"
-        expl = f"【解き方とステップ】\n・求める昼の気温は、今朝の気温 -3℃ に上がった分 +{diff}℃ を足します。\n・式: (-3) + {diff} = {ans - 25}\n・答え: {ans - 25} (℃)"
+        expl = f"【解き方とステップ】\n・求める昼の気温は、今朝の気温 -3℃ に上がった分 +{diff}℃ を足します。\n・式: (-3) + {diff} = {ans}\n・答え: {ans} (℃)"
         return {
             "type": "word", "level": level, "topic_name": "正負の数（気温の文章題）",
-            "question": q_text, "answer": str(ans - 25), "acceptable": [str(ans - 25), f"{ans - 25}度", f"{ans - 25}℃"],
+            "question": q_text, "answer": str(ans), "acceptable": [str(ans), f"{ans}度", f"{ans}℃"],
             "explanation": expl
         }
 
